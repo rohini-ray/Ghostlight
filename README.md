@@ -23,7 +23,7 @@ A spooky writing companion for old commands, ghost stories, and memories worth k
 
 5. Visit [http://127.0.0.1:8765](http://127.0.0.1:8765), send a prompt, then press **Listen** on a reply to generate speech.
 
-Restart the server after changing `.env`. The keys stay on the local Python server and are never sent to the browser. Prompts are sent to hosted Gemma through Google's API to generate replies; reply text is sent to ElevenLabs only when **Listen** is selected. Both are hosted services and may retain or process data under their own terms. API usage may incur charges. Ghostlight does not log prompt or response text, but use only stories you are comfortable sharing with those providers.
+Restart the server after changing `.env`. Server-configured keys stay on the Python server. Visitors can instead enter their own keys in **Room settings**; those are held in that tab's session storage and sent to Ghostlight's backend only when needed. The backend forwards each key to its matching provider and does not log or persist it. Prompts go to hosted Gemma; replies go to ElevenLabs only when **Listen** is selected. Both providers may process data under their own terms, and API usage may incur charges. Only enter keys on a Ghostlight deployment you trust.
 
 ## Deploy to Vercel
 

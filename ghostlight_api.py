@@ -54,10 +54,19 @@ def _read_prompt(handler, limit):
         data = json.loads(handler.rfile.read(length))
     except (ValueError, json.JSONDecodeError):
         raise ValueError("The room couldn't read that message. Try again.")
+    if not isinstance(data, dict):
+        raise ValueError("The room couldn't read that message. Try again.")
     prompt = str(data.get("prompt", "")).strip()
     if not prompt or len(prompt) > limit:
         raise ValueError(f"Bring a message up to {limit:,} characters long.")
-    return prompt
+    return prompt, data
+
+
+def _request_key(data, name, fallback):
+    key = str(data.get(name, "")).strip()
+    if len(key) > 512:
+        raise ValueError("That API key looks too long. Check it and try again.")
+    return key or fallback
 
 
 def _service_error(handler, error, service):
@@ -97,13 +106,14 @@ def handle_status(handler):
 
 
 def handle_chat(handler):
-    if not GOOGLE_API_KEY:
-        send_json(handler, 503, {"error": "Configure GEMMA_API_KEY in .env or your Vercel environment variables, then restart or redeploy Ghostlight."})
-        return
     try:
-        prompt = _read_prompt(handler, 1800)
+        prompt, data = _read_prompt(handler, 1800)
+        api_key = _request_key(data, "gemma_api_key", GOOGLE_API_KEY)
     except ValueError as error:
         send_json(handler, 400, {"error": str(error)})
+        return
+    if not api_key:
+        send_json(handler, 503, {"error": "Add your Google AI key in Room settings, or configure GEMMA_API_KEY on the server."})
         return
     payload = json.dumps({
         "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
@@ -117,7 +127,7 @@ def handle_chat(handler):
     request = urllib.request.Request(
         f"https://generativelanguage.googleapis.com/v1beta/models/{GEMMA_MODEL}:generateContent",
         data=payload,
-        headers={"Content-Type": "application/json", "x-goog-api-key": GOOGLE_API_KEY},
+        headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
     )
     try:
         with _open_gemma_with_retry(request) as response:
@@ -139,17 +149,18 @@ def handle_chat(handler):
 
 
 def handle_speak(handler):
-    if not ELEVENLABS_API_KEY:
-        send_json(handler, 503, {"error": "Configure ELEVENLABS_API_KEY in .env or your Vercel environment variables, then restart or redeploy Ghostlight."})
-        return
     try:
-        prompt = _read_prompt(handler, 5000)
+        prompt, data = _read_prompt(handler, 5000)
+        api_key = _request_key(data, "elevenlabs_api_key", ELEVENLABS_API_KEY)
     except ValueError as error:
         send_json(handler, 400, {"error": str(error)})
         return
+    if not api_key:
+        send_json(handler, 503, {"error": "Add your ElevenLabs key in Room settings, or configure ELEVENLABS_API_KEY on the server."})
+        return
     payload = json.dumps({"text": prompt, "model_id": ELEVENLABS_MODEL}).encode("utf-8")
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE_ID}?output_format=mp3_44100_128"
-    request = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json", "xi-api-key": ELEVENLABS_API_KEY})
+    request = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json", "xi-api-key": api_key})
     try:
         with urllib.request.urlopen(request, timeout=55) as response:
             audio = response.read()

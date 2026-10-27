@@ -7,6 +7,10 @@ const statusText = document.querySelector('#statusText');
 const modelHint = document.querySelector('#modelHint');
 const settingsPanel = document.querySelector('#settingsPanel');
 const panelBackdrop = document.querySelector('#panelBackdrop');
+const gemmaKeyInput = document.querySelector('#gemmaKeyInput');
+const elevenKeyInput = document.querySelector('#elevenKeyInput');
+const GEMMA_KEY_SLOT = 'ghostlight-gemma-key';
+const ELEVEN_KEY_SLOT = 'ghostlight-eleven-key';
 let online = false;
 let busy = false;
 
@@ -14,9 +18,13 @@ function setConnection(ok, message = '') {
   online = ok;
   modelStatus.classList.toggle('offline', !ok);
   statusText.textContent = message || (ok ? 'GEMMA · READY' : 'GOOGLE AI KEY NEEDED');
-  modelHint.textContent = ok ? 'Gemma replies · ElevenLabs voice on request' : 'configure GEMMA_API_KEY server-side';
+  modelHint.textContent = ok ? 'Gemma replies · ElevenLabs voice on request' : 'add a Gemma key in settings';
 }
-function openSettings() { settingsPanel.classList.add('open'); panelBackdrop.classList.add('open'); settingsPanel.setAttribute('aria-hidden','false'); }
+function openSettings() {
+  gemmaKeyInput.value = sessionStorage.getItem(GEMMA_KEY_SLOT) || '';
+  elevenKeyInput.value = sessionStorage.getItem(ELEVEN_KEY_SLOT) || '';
+  settingsPanel.classList.add('open'); panelBackdrop.classList.add('open'); settingsPanel.setAttribute('aria-hidden','false');
+}
 function closeSettings() { settingsPanel.classList.remove('open'); panelBackdrop.classList.remove('open'); settingsPanel.setAttribute('aria-hidden','true'); }
 function addMessage(kind, text, stamp = 'just now') {
   const article = document.createElement('article'); article.className = `message ${kind}-message`;
@@ -31,8 +39,10 @@ async function checkStatus() {
   try {
     const response = await fetch('/api/status');
     const data = await response.json();
-    setConnection(Boolean(data.ok), data.ok ? `GEMMA · ${data.model.toUpperCase()}` : 'GOOGLE AI KEY NEEDED');
-    if (!data.voice) modelHint.textContent = 'Gemma ready · add ElevenLabs key for voice';
+    const gemmaReady = Boolean(sessionStorage.getItem(GEMMA_KEY_SLOT) || data.ok);
+    const voiceReady = Boolean(sessionStorage.getItem(ELEVEN_KEY_SLOT) || data.voice);
+    setConnection(gemmaReady, gemmaReady ? `GEMMA · ${data.model.toUpperCase()}` : 'GOOGLE AI KEY NEEDED');
+    if (gemmaReady && !voiceReady) modelHint.textContent = 'Gemma ready · add an ElevenLabs key for voice';
   } catch { setConnection(false); }
 }
 async function send(text) {
@@ -41,7 +51,7 @@ async function send(text) {
   const reply = addMessage('ghost','The room is listening…'); reply.classList.add('thinking');
   busy = true; sendButton.disabled = true; modelStatus.classList.add('busy'); input.value = '';
   try {
-    const response = await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt})});
+    const response = await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt,gemma_api_key:sessionStorage.getItem(GEMMA_KEY_SLOT) || ''})});
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'The room went quiet. Check your Google AI key and Gemma model setting.');
     reply.textContent = data.reply; reply.classList.remove('thinking'); setConnection(true);
@@ -49,7 +59,7 @@ async function send(text) {
     listen.addEventListener('click', async () => {
       listen.disabled = true; listen.textContent = '◌  Calling the voice…';
       try {
-        const audioResponse = await fetch('/api/speak',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:data.reply})});
+        const audioResponse = await fetch('/api/speak',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:data.reply,elevenlabs_api_key:sessionStorage.getItem(ELEVEN_KEY_SLOT) || ''})});
         if (!audioResponse.ok) { const errorData = await audioResponse.json(); throw new Error(errorData.error || 'Voice service unavailable.'); }
         const audioUrl = URL.createObjectURL(await audioResponse.blob());
         const player = new Audio(audioUrl); player.onended = () => URL.revokeObjectURL(audioUrl); await player.play();
@@ -70,6 +80,13 @@ document.querySelectorAll('.idea-chip').forEach(button => button.addEventListene
 document.querySelector('#settingsToggle').addEventListener('click',openSettings);
 document.querySelector('#settingsClose').addEventListener('click',closeSettings);
 panelBackdrop.addEventListener('click',closeSettings);
-document.querySelector('#saveSettings').addEventListener('click', async () => { closeSettings(); await checkStatus(); });
+document.querySelector('#saveSettings').addEventListener('click', async () => {
+  const gemmaKey = gemmaKeyInput.value.trim();
+  const elevenKey = elevenKeyInput.value.trim();
+  if (gemmaKey) sessionStorage.setItem(GEMMA_KEY_SLOT, gemmaKey); else sessionStorage.removeItem(GEMMA_KEY_SLOT);
+  if (elevenKey) sessionStorage.setItem(ELEVEN_KEY_SLOT, elevenKey); else sessionStorage.removeItem(ELEVEN_KEY_SLOT);
+  closeSettings();
+  await checkStatus();
+});
 document.addEventListener('keydown', event => { if (event.key === 'Escape') closeSettings(); });
 checkStatus();
