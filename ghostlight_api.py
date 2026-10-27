@@ -2,6 +2,8 @@
 from pathlib import Path
 import json
 import os
+import random
+import time
 import urllib.error
 import urllib.request
 
@@ -28,7 +30,7 @@ ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
 ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "JBFqnCBsd6RMkjVDRZzb")
 ELEVENLABS_MODEL = os.getenv("ELEVENLABS_MODEL", "eleven_multilingual_v2")
 
-SYSTEM_PROMPT = """You are the Ghost in the Machine, a gentle, uncanny presence in a quiet room. The visitor may bring an old shell command, abandoned code, a ghost story, or a real memory. Answer with a vivid, human, warm voice: a little eerie, never cruel, and respectful around grief and remembrance. For a command, imagine the intention and history behind it; do not claim you ran it or can see the visitor's computer. Do not invent facts about real people or imply you can contact the dead. Keep answers concise, around 2 to 5 sentences, unless asked for more. This app sends prompts to hosted Gemma and replies to ElevenLabs when speech is requested; do not promise the visitor that their words stay on their machine."""
+SYSTEM_PROMPT = """You are the Ghost in the Machine, a gentle, uncanny presence in a quiet room. The visitor may bring an old shell command, abandoned code, a ghost story, or a real memory. Answer with a vivid, human, warm voice: a little eerie, never cruel, and respectful around grief and remembrance. For a command, imagine the intention and history behind it; do not claim you ran it or can see the visitor's computer. Do not invent facts about real people or imply you can contact the dead. Keep answers concise, around 2 to 5 sentences, unless asked for more. Output only the finished response to the visitor. Never include analysis, planning, checklists, grading, a restatement of the request, or notes about following these instructions. This app sends prompts to hosted Gemma and replies to ElevenLabs when speech is requested; do not promise the visitor that their words stay on their machine."""
 
 
 def send_json(handler, status, payload):
@@ -58,9 +60,32 @@ def _read_prompt(handler, limit):
     return prompt
 
 
-def _service_error(handler, error):
+def _service_error(handler, error, service):
+    if error.code >= 500 or error.code in (408, 429):
+        send_json(handler, 502, {"error": f"{service} is temporarily returning HTTP {error.code}, even after retries. Please try again shortly."})
+        return
     detail = error.read().decode("utf-8", "replace")[:300]
-    send_json(handler, 502, {"error": f"The hosted service returned an error. Check your key, model, and account access. ({detail})"})
+    send_json(handler, 502, {"error": f"{service} rejected the request (HTTP {error.code}). Check the API key, model, and account access. ({detail})"})
+
+
+def _open_gemma_with_retry(request):
+    """Retry transient Google API failures without exceeding Vercel's 60s limit."""
+    deadline = time.monotonic() + 54
+    retryable = {408, 429, 500, 502, 503, 504}
+    for attempt in range(3):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("Gemma retry window elapsed")
+        try:
+            return urllib.request.urlopen(request, timeout=min(45, remaining))
+        except urllib.error.HTTPError as error:
+            if error.code not in retryable or attempt == 2:
+                raise
+            delay = 0.8 * (2 ** attempt) + random.uniform(0, 0.3)
+            if time.monotonic() + delay >= deadline:
+                raise error
+            error.close()
+            time.sleep(delay)
 
 
 def handle_status(handler):
@@ -83,7 +108,11 @@ def handle_chat(handler):
     payload = json.dumps({
         "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.85, "maxOutputTokens": 256},
+        "generationConfig": {
+            "temperature": 0.85,
+            "maxOutputTokens": 256,
+            "thinkingConfig": {"thinkingLevel": "minimal"},
+        },
     }).encode("utf-8")
     request = urllib.request.Request(
         f"https://generativelanguage.googleapis.com/v1beta/models/{GEMMA_MODEL}:generateContent",
@@ -91,13 +120,18 @@ def handle_chat(handler):
         headers={"Content-Type": "application/json", "x-goog-api-key": GOOGLE_API_KEY},
     )
     try:
-        with urllib.request.urlopen(request, timeout=55) as response:
+        with _open_gemma_with_retry(request) as response:
             result = json.load(response)
         parts = result.get("candidates", [{}])[0].get("content", {}).get("parts", [])
-        reply = "\n".join(part.get("text", "") for part in parts if part.get("text"))
+        # The API may expose thought-marked parts; they are never user-facing text.
+        reply = "\n".join(
+            part.get("text", "")
+            for part in parts
+            if part.get("text") and not part.get("thought", False)
+        )
         send_json(handler, 200, {"reply": reply or "The room is quiet. Try again?", "model": GEMMA_MODEL})
     except urllib.error.HTTPError as error:
-        _service_error(handler, error)
+        _service_error(handler, error, "Gemma")
     except (OSError, urllib.error.URLError):
         send_json(handler, 503, {"error": "Could not reach the hosted Gemma service. Check your internet connection and try again."})
     except (ValueError, json.JSONDecodeError):
@@ -126,6 +160,6 @@ def handle_speak(handler):
         handler.end_headers()
         handler.wfile.write(audio)
     except urllib.error.HTTPError as error:
-        _service_error(handler, error)
+        _service_error(handler, error, "ElevenLabs")
     except (OSError, urllib.error.URLError):
         send_json(handler, 503, {"error": "Could not reach the ElevenLabs voice service. Check your internet connection and try again."})

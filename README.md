@@ -47,6 +47,10 @@ The project includes Vercel Python functions in `api/` for `/api/status`, `/api/
 
 The included `vercel.json` sets a 60-second maximum for both hosted AI routes, which fits Vercel Hobby's documented function limit. If a request times out, try again or use a plan with longer function durations. [Vercel Python functions](https://vercel.com/docs/functions/runtimes/python) · [Function duration limits](https://vercel.com/docs/functions/configuring-functions/duration) · [Environment variables](https://vercel.com/docs/environment-variables)
 
+Gemma requests retry transient Google API failures (including HTTP 500) up to two times with a short backoff. Google recommends retrying transient 5xx errors; if they continue, check Google AI Studio service/key status or try again later. [Google API troubleshooting](https://ai.google.dev/gemini-api/docs/troubleshooting)
+
+Ghostlight asks hosted Gemma to use minimal thinking and returns only final-answer text, filtering any response parts explicitly marked as thoughts. This keeps the chat focused on the story instead of the model's planning.
+
 **Protect your API quota:** anyone who can reach a public deployment can call its chat and speech routes, consuming your provider quota. Keep the deployment private while testing, and set appropriate usage limits in Google AI Studio and ElevenLabs before sharing it widely.
 
 ## The séance
