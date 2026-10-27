@@ -73,7 +73,16 @@ def _service_error(handler, error, service):
     if error.code >= 500 or error.code in (408, 429):
         send_json(handler, 502, {"error": f"{service} is temporarily returning HTTP {error.code}, even after retries. Please try again shortly."})
         return
-    detail = error.read().decode("utf-8", "replace")[:300]
+    raw_detail = error.read().decode("utf-8", "replace")
+    try:
+        provider_error = json.loads(raw_detail)
+    except (ValueError, json.JSONDecodeError):
+        provider_error = {}
+    detail_info = provider_error.get("detail", {}) if isinstance(provider_error, dict) else {}
+    if service == "ElevenLabs" and isinstance(detail_info, dict) and detail_info.get("status") == "api_key_id_used_as_api_key":
+        send_json(handler, 502, {"error": "That looks like an ElevenLabs Key ID, not the secret API key. Create or rotate an API key in ElevenLabs, copy the full secret beginning with sk_, then replace the value in Room settings. ElevenLabs only shows the secret when it is created or rotated."})
+        return
+    detail = raw_detail[:300]
     send_json(handler, 502, {"error": f"{service} rejected the request (HTTP {error.code}). Check the API key, model, and account access. ({detail})"})
 
 

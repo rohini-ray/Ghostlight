@@ -6,3 +6,5 @@
 .settings-panel{overflow-y:auto}.key-input{margin-bottom:2px}.key-link{margin:0 0 14px;font:10px/1.5 var(--sans)}.key-link a{color:#dbb66f}.settings-panel .field-help{margin-top:12px}
 
 .room-settings-link{border:0;background:transparent;cursor:pointer;padding:4px;font-family:var(--mono)}.room-settings-link:hover{color:var(--gold-bright)}
+
+.voice-error{margin:7px 0 0 19px;max-width:550px;padding:8px 10px;border:1px solid #725b38;border-radius:3px;background:#171710;color:#e0c27e;font:10px/1.6 var(--mono);overflow-wrap:anywhere}.key-format-help{margin-top:-10px!important;margin-bottom:15px}.key-format-help code{color:#d0b379;font:10px var(--mono)}

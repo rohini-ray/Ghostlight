@@ -57,6 +57,7 @@ async function send(text) {
     reply.textContent = data.reply; reply.classList.remove('thinking'); setConnection(true);
     const listen = document.createElement('button'); listen.className = 'listen-button'; listen.type = 'button'; listen.textContent = '▶  Listen'; listen.setAttribute('aria-label','Listen to the ghost reply');
     listen.addEventListener('click', async () => {
+      if (listen.nextElementSibling?.classList.contains('voice-error')) listen.nextElementSibling.remove();
       listen.disabled = true; listen.textContent = '◌  Calling the voice…';
       try {
         const audioResponse = await fetch('/api/speak',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:data.reply,elevenlabs_api_key:sessionStorage.getItem(ELEVEN_KEY_SLOT) || ''})});
@@ -64,8 +65,11 @@ async function send(text) {
         const audioUrl = URL.createObjectURL(await audioResponse.blob());
         const player = new Audio(audioUrl); player.onended = () => URL.revokeObjectURL(audioUrl); await player.play();
         listen.textContent = '▶  Listen again';
-      } catch (error) { listen.textContent = error.message; }
-      finally { listen.disabled = false; }
+      } catch (error) {
+        listen.textContent = '▶  Listen';
+        const notice = document.createElement('div'); notice.className = 'voice-error'; notice.textContent = error.message;
+        listen.after(notice);
+      } finally { listen.disabled = false; }
     });
     reply.after(listen);
   } catch (error) {
@@ -84,6 +88,12 @@ panelBackdrop.addEventListener('click',closeSettings);
 document.querySelector('#saveSettings').addEventListener('click', async () => {
   const gemmaKey = gemmaKeyInput.value.trim();
   const elevenKey = elevenKeyInput.value.trim();
+  if (elevenKey && !elevenKey.startsWith('sk_')) {
+    elevenKeyInput.setCustomValidity('Use the full ElevenLabs secret API key beginning with sk_, not its Key ID.');
+    elevenKeyInput.reportValidity();
+    return;
+  }
+  elevenKeyInput.setCustomValidity('');
   if (gemmaKey) sessionStorage.setItem(GEMMA_KEY_SLOT, gemmaKey); else sessionStorage.removeItem(GEMMA_KEY_SLOT);
   if (elevenKey) sessionStorage.setItem(ELEVEN_KEY_SLOT, elevenKey); else sessionStorage.removeItem(ELEVEN_KEY_SLOT);
   closeSettings();
