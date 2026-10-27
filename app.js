@@ -14,7 +14,7 @@ function setConnection(ok, message = '') {
   online = ok;
   modelStatus.classList.toggle('offline', !ok);
   statusText.textContent = message || (ok ? 'GEMMA · READY' : 'GOOGLE AI KEY NEEDED');
-  modelHint.textContent = ok ? 'Gemma replies · ElevenLabs voice on request' : 'add your Google AI key in .env';
+  modelHint.textContent = ok ? 'Gemma replies · ElevenLabs voice on request' : 'configure GEMMA_API_KEY server-side';
 }
 function openSettings() { settingsPanel.classList.add('open'); panelBackdrop.classList.add('open'); settingsPanel.setAttribute('aria-hidden','false'); }
 function closeSettings() { settingsPanel.classList.remove('open'); panelBackdrop.classList.remove('open'); settingsPanel.setAttribute('aria-hidden','true'); }
