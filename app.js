@@ -88,8 +88,8 @@ panelBackdrop.addEventListener('click',closeSettings);
 document.querySelector('#saveSettings').addEventListener('click', async () => {
   const gemmaKey = gemmaKeyInput.value.trim();
   const elevenKey = elevenKeyInput.value.trim();
-  if (elevenKey && !elevenKey.startsWith('sk_')) {
-    elevenKeyInput.setCustomValidity('Use the full ElevenLabs secret API key beginning with sk_, not its Key ID.');
+  if (elevenKey && (!elevenKey.startsWith('sk_') || elevenKey.length !== 51)) {
+    elevenKeyInput.setCustomValidity('Use only the 51-character ElevenLabs secret API key beginning with sk_. Do not include its label or Key ID.');
     elevenKeyInput.reportValidity();
     return;
   }

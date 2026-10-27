@@ -82,6 +82,9 @@ def _service_error(handler, error, service):
     if service == "ElevenLabs" and isinstance(detail_info, dict) and detail_info.get("status") == "api_key_id_used_as_api_key":
         send_json(handler, 502, {"error": "That looks like an ElevenLabs Key ID, not the secret API key. Create or rotate an API key in ElevenLabs, copy the full secret beginning with sk_, then replace the value in Room settings. ElevenLabs only shows the secret when it is created or rotated."})
         return
+    if service == "ElevenLabs" and isinstance(detail_info, dict) and detail_info.get("status") == "invalid_api_key_length":
+        send_json(handler, 502, {"error": "ElevenLabs requires the secret API key to be exactly 51 characters. Copy only the key beginning with sk_; leave out labels, quotes, and the Key ID."})
+        return
     detail = raw_detail[:300]
     send_json(handler, 502, {"error": f"{service} rejected the request (HTTP {error.code}). Check the API key, model, and account access. ({detail})"})
 
@@ -166,6 +169,9 @@ def handle_speak(handler):
         return
     if not api_key:
         send_json(handler, 503, {"error": "Add your ElevenLabs key in Room settings, or configure ELEVENLABS_API_KEY on the server."})
+        return
+    if not api_key.startswith("sk_") or len(api_key) != 51:
+        send_json(handler, 400, {"error": "Use only the 51-character ElevenLabs secret key beginning with sk_, not its label or Key ID."})
         return
     payload = json.dumps({"text": prompt, "model_id": ELEVENLABS_MODEL}).encode("utf-8")
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE_ID}?output_format=mp3_44100_128"

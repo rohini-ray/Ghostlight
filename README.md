@@ -23,7 +23,7 @@ A spooky writing companion for old commands, ghost stories, and memories worth k
 
 5. Visit [http://127.0.0.1:8765](http://127.0.0.1:8765), send a prompt, then press **Listen** on a reply to generate speech.
 
-You can enter personal provider keys in **Room settings** instead of configuring them server-side. For ElevenLabs, use the full secret API key beginning with `sk_`, not the Key ID; ElevenLabs only shows the secret when it is created or rotated.
+You can enter personal provider keys in **Room settings** instead of configuring them server-side. For ElevenLabs, use only the 51-character secret API key beginning with `sk_`, not its label or Key ID; ElevenLabs only shows the secret when it is created or rotated.
 
 Restart the server after changing `.env`. Server-configured keys stay on the Python server. Visitors can instead enter their own keys in **Room settings**; those are held in that tab's session storage and sent to Ghostlight's backend only when needed. The backend forwards each key to its matching provider and does not log or persist it. Prompts go to hosted Gemma; replies go to ElevenLabs only when **Listen** is selected. Both providers may process data under their own terms, and API usage may incur charges. Only enter keys on a Ghostlight deployment you trust.
 
