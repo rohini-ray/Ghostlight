@@ -78,6 +78,7 @@ input.addEventListener('keydown', event => { if (event.key === 'Enter' && !event
 input.addEventListener('input', () => { input.style.height = 'auto'; input.style.height = `${Math.min(input.scrollHeight,90)}px`; });
 document.querySelectorAll('.idea-chip').forEach(button => button.addEventListener('click', () => { input.value = button.dataset.prompt; input.focus(); input.dispatchEvent(new Event('input')); }));
 document.querySelector('#settingsToggle').addEventListener('click',openSettings);
+document.querySelector('#roomSettingsToggle').addEventListener('click',openSettings);
 document.querySelector('#settingsClose').addEventListener('click',closeSettings);
 panelBackdrop.addEventListener('click',closeSettings);
 document.querySelector('#saveSettings').addEventListener('click', async () => {
